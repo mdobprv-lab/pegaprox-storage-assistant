@@ -24,6 +24,9 @@ if [[ -d "$DEST" ]]; then
 fi
 mkdir -p "$DEST/src" "$DEST/locales"
 cp -f "$SRC/__init__.py" "$SRC/manifest.json" "$DEST/"
+if [[ ! -f "$DEST/config.json" ]]; then
+  cp -f "$SRC/config.json" "$DEST/config.json"
+fi
 cp -a "$SRC/src/." "$DEST/src/"
 cp -a "$SRC/locales/." "$DEST/locales/"
 

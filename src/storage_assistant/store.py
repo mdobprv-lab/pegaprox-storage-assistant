@@ -78,13 +78,33 @@ def save(path, data):
         return _save_unlocked(path, data)
 
 
-def upsert(path, raw_resource):
+def create(path, raw_resource):
     resource = normalize_resource(raw_resource)
     with _LOCK, _file_lock(path, exclusive=True):
         registry = _load_unlocked(path)
-        by_id = {item["id"]: item for item in registry["resources"]}
-        by_id[resource["id"]] = resource
-        return _save_unlocked(path, {"schema": 1, "resources": list(by_id.values())})
+        if any(item["id"] == resource["id"] for item in registry["resources"]):
+            raise ValidationError("resource.already_exists")
+        registry["resources"].append(resource)
+        return _save_unlocked(path, registry)
+
+
+def update(path, raw_resource):
+    resource = normalize_resource(raw_resource)
+    with _LOCK, _file_lock(path, exclusive=True):
+        registry = _load_unlocked(path)
+        existing = next(
+            (item for item in registry["resources"] if item["id"] == resource["id"]),
+            None,
+        )
+        if existing is None:
+            raise ValidationError("resource.not_found")
+        if existing["type"] != resource["type"]:
+            raise ValidationError("resource.type_change")
+        registry["resources"] = [
+            resource if item["id"] == resource["id"] else item
+            for item in registry["resources"]
+        ]
+        return _save_unlocked(path, registry)
 
 
 def remove(path, resource_id):

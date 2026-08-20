@@ -61,6 +61,22 @@ def _host(value):
         return value.lower()
 
 
+def _nfs_export(value):
+    """Normalize user-friendly NFS export input to one absolute POSIX path."""
+    value = _text(value, "export")
+    value = value.replace("\\", "/")
+    if not value.startswith("/"):
+        value = f"/{value}"
+    value = re.sub(r"/+", "/", value)
+    if value != "/":
+        value = value.rstrip("/")
+    if len(value) > 255:
+        raise ValidationError("export.too_long")
+    if any(segment in {".", ".."} for segment in value.split("/")):
+        raise ValidationError("export.invalid")
+    return value
+
+
 def _target_name(value):
     value = _text(value, "target_iqn", 223)
     if not (_IQN_RE.fullmatch(value) or _EUI_RE.fullmatch(value) or _NAA_RE.fullmatch(value)):
@@ -128,10 +144,7 @@ def normalize_resource(raw):
         raise ValidationError("name.invalid")
 
     if kind == "pve_nfs":
-        export = _text(raw.get("export"), "export")
-        if (not export.startswith("/") or "//" in export or
-                any(segment in {".", ".."} for segment in export.split("/"))):
-            raise ValidationError("export.invalid")
+        export = _nfs_export(raw.get("export"))
         version = str(raw.get("nfs_version") or "4.2")
         if version not in {"3", "4", "4.1", "4.2"}:
             raise ValidationError("nfs_version.invalid")
@@ -240,6 +253,7 @@ def deployment_plan(resource):
     resource = normalize_resource(resource)
     if resource["type"] == "pve_nfs":
         return {
+            "resource": resource,
             "destructive": False,
             "scope": "pve_cluster",
             "checks": ["dns", "tcp_2049", "exports", "mount_each_node", "write_read"],
@@ -249,6 +263,7 @@ def deployment_plan(resource):
     create_filesystem = resource["filesystem_mode"] == "create"
     ready = bool(resource["wwid"])
     return {
+        "resource": resource,
         "destructive": create_filesystem,
         "ready": ready,
         "scope": "single_pbs",

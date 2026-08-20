@@ -20,7 +20,21 @@ class ValidationTests(unittest.TestCase):
         })
         self.assertEqual(resource["content"], ["import", "iso", "snippets", "vztmpl"])
         self.assertNotIn("images", resource["content"])
-        self.assertFalse(deployment_plan(resource)["destructive"])
+        plan = deployment_plan(resource)
+        self.assertFalse(plan["destructive"])
+        self.assertEqual(plan["resource"], resource)
+
+    def test_normalizes_user_friendly_nfs_export_paths(self):
+        base = {
+            "type": "pve_nfs", "name": "nas-tech", "location": "hq",
+            "host": "nas.example.lan", "cluster_id": "pve-prod",
+        }
+        for entered in (
+                "test/technical", "technical", r"\test\technical",
+                r"test\technical", "//test//technical/"):
+            resource = normalize_resource({**base, "export": entered})
+            expected = "/technical" if entered == "technical" else "/test/technical"
+            self.assertEqual(resource["export"], expected)
 
     def test_rejects_pve_content_outside_allowlist(self):
         with self.assertRaisesRegex(ValidationError, "content.invalid"):
@@ -188,11 +202,12 @@ class ValidationTests(unittest.TestCase):
             })
 
     def test_rejects_traversal_in_nfs_export(self):
-        with self.assertRaisesRegex(ValidationError, "export.invalid"):
-            normalize_resource({
-            "type": "pve_nfs", "name": "nas-tech", "location": "hq",
-            "host": "10.0.0.10", "cluster_id": "pve", "export": "/safe/../etc"
-            })
+        for entered in ("/safe/../etc", r"safe\..\etc", "safe/./etc"):
+            with self.assertRaisesRegex(ValidationError, "export.invalid"):
+                normalize_resource({
+                    "type": "pve_nfs", "name": "nas-tech", "location": "hq",
+                    "host": "10.0.0.10", "cluster_id": "pve", "export": entered
+                })
 
 
 if __name__ == "__main__":
