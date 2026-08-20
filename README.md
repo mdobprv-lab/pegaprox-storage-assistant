@@ -1,13 +1,34 @@
 # PegaProx Storage Assistant
 
+[![CI](https://github.com/mdobprv-lab/pegaprox-storage-assistant/actions/workflows/ci.yml/badge.svg)](https://github.com/mdobprv-lab/pegaprox-storage-assistant/actions/workflows/ci.yml)
+
+> [!IMPORTANT]
+> **Early community preview.** Version 0.1.1 validates and stores storage
+> definitions, but does not discover, connect, mount, format or register remote
+> storage. Remote execution is deliberately disabled.
+
 PegaProx 1.0.2+ plugin for two deliberately separated storage workflows:
 
 - **PVE / NFS** — cluster-wide technical content (`iso`, `vztmpl`, `snippets`, `import`), never VM disks or backups.
 - **PBS / iSCSI** — a dedicated LUN attached to one PBS, formatted as XFS/ext4 and registered as a PBS datastore.
 
-The registry supports multiple NAS devices, exports, targets, LUNs and network locations. Distinct portals exposing the same WWID will be treated as paths to one LUN in the execution milestone.
+The registry supports multiple NAS devices, exports, targets, LUNs and network
+locations. Distinct portals exposing the same WWID will be treated as paths to one
+LUN in the execution milestone.
 
-## Current milestone: 0.1.1
+## Design boundaries
+
+| Managed system | Protocol | Intended role | Explicitly excluded |
+|---|---|---|---|
+| PVE cluster | NFS | Shared technical content: `iso`, `vztmpl`, `snippets`, `import` | VM disks and backups |
+| PBS server | iSCSI | Dedicated LUN formatted with XFS/ext4 and registered as one PBS datastore | Attaching the same LUN to PVE or another PBS |
+
+The separation is intentional. PVE receives cluster-wide NFS storage for technical
+content, while PBS receives a block device with one unambiguous owner. The plugin is
+NAS-vendor-neutral and is designed to manage definitions from multiple NAS devices
+and network locations.
+
+## Current milestone: 0.1.1 community preview
 
 This foundation release provides:
 
@@ -25,6 +46,50 @@ This foundation release provides:
 - WWID/LUN/datastore/export ownership collision prevention;
 - RBAC and PegaProx audit logging for definition changes;
 - no remote mutation yet (`execution_enabled: false`).
+
+### Compatibility and validation
+
+- tested with PegaProx 1.0.2 in the official Docker deployment model;
+- tested on Python 3.12;
+- verified in Modern, Corporate Dark/Light and Cloud Dark/Light layouts;
+- English and Polish interface catalogs with matching keys;
+- 29 automated tests covering validation, persistence, concurrency, authorization
+  and frontend contracts;
+- CI validates Python, JSON, shell scripts, embedded JavaScript and the complete
+  unit-test suite.
+
+Real NAS, PVE and PBS discovery tests are intentionally deferred to milestones 2–3.
+
+## Screenshots
+
+All storage definitions shown below are synthetic examples. Host addresses use the
+RFC 5737 documentation range `192.0.2.0/24`; the IQN, WWID and datastore names do
+not identify real infrastructure. The `10.220.0.20` and `10.221.0.20` portal
+addresses visible in the empty iSCSI form are static UI placeholders. They are not
+stored unless an operator explicitly enters them.
+
+### Resource overview
+
+![Storage Assistant resource overview](docs/images/storage-overview.png)
+
+### PVE/NFS wizard
+
+![PVE NFS definition form](docs/images/pve-nfs-form.png)
+
+![PVE NFS definition review](docs/images/pve-nfs-review.png)
+
+### PBS/iSCSI wizard
+
+![PBS iSCSI definition form](docs/images/pbs-iscsi-form.png)
+
+![PBS iSCSI definition review](docs/images/pbs-iscsi-review.png)
+
+<details>
+<summary>Plugin activation in PegaProx 1.0.2</summary>
+
+![Storage Assistant enabled in PegaProx](docs/images/plugin-enabled.png)
+
+</details>
 
 API base: `/api/plugins/storage-assistant/api`
 
@@ -54,6 +119,22 @@ enabled through this file.
 In version 0.1.1, **Validate definition** checks syntax, normalization, ownership
 collisions and safety classification only. It does not probe NAS, PVE or PBS.
 NFS/iSCSI discovery and connectivity diagnostics belong to roadmap milestones 2–3.
+
+## Feedback requested
+
+This preview is published early to validate integration decisions before the remote
+execution layer is implemented. Feedback from PegaProx maintainers and operators is
+especially useful in these areas:
+
+- reusing PegaProx-managed PVE/PBS connections without duplicating credentials;
+- the preferred background-task, progress-reporting and cancellation interfaces;
+- canonical RBAC and audit integration for plugin-initiated host operations;
+- targeting one PVE node, an entire PVE cluster or one PBS instance;
+- the supported frontend navigation model for global and PBS-oriented plugins;
+- expectations for community-plugin packaging and marketplace readiness.
+
+Please treat the current API and data schema as preview interfaces until the first
+execution-capable release.
 
 ## Roadmap
 
