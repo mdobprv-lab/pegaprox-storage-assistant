@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Python 3.12
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.12"
+
+      - name: Validate static files
+        shell: bash
+        run: |
+          python -m compileall -q src tests
+          python -m json.tool manifest.json >/dev/null
+          python -m json.tool config.json >/dev/null
+          python -m json.tool locales/en.json >/dev/null
+          python -m json.tool locales/pl.json >/dev/null
+          bash -n install.sh uninstall.sh
+
+      - name: Validate embedded JavaScript
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const html = fs.readFileSync('src/ui/plugin.html', 'utf8');
+          const match = html.match(/<script>([\s\S]*)<\/script>/);
+          if (!match) throw new Error('embedded script not found');
+          new Function(match[1]);
+          NODE
+
+      - name: Run unit tests
+        run: python -m unittest discover -s tests -v

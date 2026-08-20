@@ -1,3 +1,4 @@
+import json
 import pathlib
 import sys
 import tempfile
@@ -85,12 +86,47 @@ class ApiAuthTests(unittest.TestCase):
         request.body = self.resource()
         saved = api.resources()
         resource_id = saved["resources"][0]["id"]
-        self.assertEqual(audits[-1]["action"], "storage_assistant.resource_saved")
+        self.assertEqual(audits[-1]["action"], "storage_assistant.resource_created")
+
+        request.body = {**saved["resources"][0], "description": "duplicate create"}
+        duplicate, code = api.resources()
+        self.assertEqual(code, 400)
+        self.assertEqual(duplicate["error"], "resource.already_exists")
+
+        request.method = "PUT"
+        request.body = {**saved["resources"][0], "description": "updated"}
+        updated = api.resources()
+        self.assertEqual(updated["resources"][0]["description"], "updated")
+        self.assertEqual(audits[-1]["action"], "storage_assistant.resource_updated")
+
         request.method = "DELETE"
         request.args = {"id": resource_id}
         deleted = api.resources()
         self.assertEqual(deleted["resources"], [])
         self.assertEqual(audits[-1]["action"], "storage_assistant.resource_deleted")
+
+    def test_settings_are_allowlisted_and_invalid_values_fall_back(self):
+        plugin_dir = pathlib.Path(self.directory.name) / "plugin"
+        plugin_dir.mkdir()
+        (plugin_dir / "config.json").write_text(json.dumps({
+            "default_language": "de",
+            "theme_override": "javascript:alert(1)",
+            "secret": "must-not-be-returned",
+        }), encoding="utf-8")
+        api.init(str(plugin_dir))
+        self.assertEqual(api.settings(), {
+            "default_language": "auto",
+            "theme_override": "auto",
+        })
+
+        (plugin_dir / "config.json").write_text(json.dumps({
+            "default_language": "pl",
+            "theme_override": "cloud-light",
+        }), encoding="utf-8")
+        self.assertEqual(api.settings(), {
+            "default_language": "pl",
+            "theme_override": "cloud-light",
+        })
 
 
 if __name__ == "__main__":

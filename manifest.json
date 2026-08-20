@@ -1,7 +1,7 @@
 {
   "id": "storage-assistant",
   "name": "Storage Assistant",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": "mdobprv-lab",
   "description": "Safe multi-resource NFS storage for PVE clusters and iSCSI-backed datastores for PBS.",
   "min_pegaprox": "1.0.2",

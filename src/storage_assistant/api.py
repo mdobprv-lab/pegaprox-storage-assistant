@@ -9,12 +9,25 @@ import uuid
 from flask import jsonify, request, send_file
 
 from . import __version__
-from .store import load, remove, upsert
+from .store import create, load, remove, update
 from .validation import ValidationError, deployment_plan, normalize_resource
 
 PLUGIN_ID = "storage-assistant"
 PLUGIN_DIR = None
 REGISTRY_PATH = None
+DEFAULT_SETTINGS = {
+    "default_language": "auto",
+    "theme_override": "auto",
+}
+ALLOWED_LANGUAGES = {"auto", "en", "pl"}
+ALLOWED_THEMES = {
+    "auto",
+    "modern-dark",
+    "corporate-dark",
+    "corporate-light",
+    "cloud-dark",
+    "cloud-light",
+}
 
 
 def init(plugin_dir):
@@ -46,6 +59,22 @@ def _audit(action, details):
     log_audit(user=request.session.get("user", "system"), action=action, details=details)
 
 
+def _settings():
+    """Return only supported, non-sensitive settings with safe fallbacks."""
+    values = dict(DEFAULT_SETTINGS)
+    try:
+        with open(os.path.join(PLUGIN_DIR, "config.json"), "r", encoding="utf-8") as handle:
+            raw = json.load(handle)
+        if isinstance(raw, dict):
+            if raw.get("default_language") in ALLOWED_LANGUAGES:
+                values["default_language"] = raw["default_language"]
+            if raw.get("theme_override") in ALLOWED_THEMES:
+                values["theme_override"] = raw["theme_override"]
+    except (OSError, TypeError, ValueError, json.JSONDecodeError):
+        pass
+    return values
+
+
 def ui():
     return send_file(os.path.join(PLUGIN_DIR, "src", "ui", "plugin.html"), mimetype="text/html")
 
@@ -57,6 +86,12 @@ def locale():
     path = os.path.join(PLUGIN_DIR, "locales", f"{lang}.json")
     with open(path, "r", encoding="utf-8") as handle:
         return jsonify(json.load(handle))
+
+
+def settings():
+    if (error := _require("storage.view")):
+        return error
+    return jsonify(_settings())
 
 
 def status():
@@ -96,8 +131,13 @@ def resources():
     body = request.get_json(silent=True)
     try:
         resource = normalize_resource(body)
-        result = upsert(REGISTRY_PATH, resource)
-        _audit("storage_assistant.resource_saved",
+        if request.method == "PUT":
+            result = update(REGISTRY_PATH, resource)
+            action = "storage_assistant.resource_updated"
+        else:
+            result = create(REGISTRY_PATH, resource)
+            action = "storage_assistant.resource_created"
+        _audit(action,
                f"resource_id={resource['id']} type={resource['type']} name={resource['name']}")
         return jsonify(result)
     except (ValidationError, ValueError, TypeError) as exc:
@@ -116,6 +156,7 @@ def plan():
 ROUTES = {
     "ui": ui,
     "locale": locale,
+    "settings": settings,
     "status": status,
     "resources": resources,
     "plan": plan,
