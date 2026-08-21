@@ -111,6 +111,27 @@ class ValidationTests(unittest.TestCase):
         self.assertFalse(plan["destructive"])
         self.assertFalse(plan["ready"])
 
+    def test_accepts_and_preserves_real_pbs_datastore_id(self):
+        resource = normalize_resource({
+            "type": "pbs_iscsi", "name": "pbs-nas-a", "location": "hq",
+            "host": "10.0.0.20", "pbs_id": "pbs01",
+            "target_iqn": "iqn.2026-08.example:pbs.backup", "lun": 0,
+            "filesystem": "xfs", "datastore": "PBS-MAIN"
+        })
+        self.assertEqual(resource["datastore"], "PBS-MAIN")
+
+    def test_rejects_unsafe_pbs_datastore_ids(self):
+        base = {
+            "type": "pbs_iscsi", "name": "pbs-nas-a", "location": "hq",
+            "host": "10.0.0.20", "pbs_id": "pbs01",
+            "target_iqn": "iqn.2026-08.example:pbs.backup", "lun": 0,
+            "filesystem": "xfs",
+        }
+        for datastore in ("PBS MAIN", "../PBS-MAIN", "/mnt/datastore/pbs-main"):
+            with self.subTest(datastore=datastore):
+                with self.assertRaisesRegex(ValidationError, "datastore.invalid"):
+                    normalize_resource({**base, "datastore": datastore})
+
     def test_formatting_is_destructive_even_with_known_wwid(self):
         resource = normalize_resource({
             "type": "pbs_iscsi", "name": "pbs-nas-a", "location": "hq",
