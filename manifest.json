@@ -1,9 +1,9 @@
 {
   "id": "storage-assistant",
   "name": "Storage Assistant",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "author": "mdobprv-lab",
-  "description": "Safe multi-resource NFS storage for PVE clusters and iSCSI-backed datastores for PBS.",
+  "description": "Read-only PVE/NFS and PBS/iSCSI storage inspection with safe multi-resource definitions.",
   "min_pegaprox": "1.0.2",
   "license": "MIT",
   "has_frontend": true,

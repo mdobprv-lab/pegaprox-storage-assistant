@@ -11,6 +11,7 @@ NFS_CONTENT = {"iso", "vztmpl", "snippets", "import"}
 FILESYSTEMS = {"ext4", "xfs"}
 FILESYSTEM_MODES = {"reuse", "create"}
 _ID_RE = re.compile(r"^[a-z][a-z0-9_-]{1,63}$")
+_PBS_DATASTORE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 _IQN_RE = re.compile(r"^iqn\.\d{4}-(0[1-9]|1[0-2])\.[a-z0-9.-]+(?::[^\s\x00-\x1f\x7f]+)?$")
 _EUI_RE = re.compile(r"^eui\.[0-9a-fA-F]{16}$")
 _NAA_RE = re.compile(r"^naa\.[0-9a-fA-F]{16}(?:[0-9a-fA-F]{16})?$")
@@ -199,7 +200,7 @@ def normalize_resource(raw):
         })
         if common["lun"] < 0:
             raise ValidationError("lun.invalid")
-        if not _ID_RE.fullmatch(common["datastore"]):
+        if not _PBS_DATASTORE_RE.fullmatch(common["datastore"]):
             raise ValidationError("datastore.invalid")
         if common["multipath"] and not common["wwid"]:
             raise ValidationError("multipath.wwid_required")

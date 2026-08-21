@@ -2,9 +2,10 @@
 
 ## Project status
 
-PegaProx Storage Assistant 0.1.1 is an early community preview. It validates and
-stores resource definitions and generates non-executing deployment plans. It does
-not discover, connect, mount, format or register remote storage.
+PegaProx Storage Assistant 0.2.0 is an early community preview. It validates and
+stores resource definitions, generates non-executing deployment plans and performs
+explicitly read-only inspection through PegaProx-managed connections. It does not
+log in to iSCSI targets, mount, format or register remote storage.
 
 Remote execution is deliberately disabled in this release and cannot be enabled
 through `config.json` or the plugin UI.
@@ -13,7 +14,7 @@ through `config.json` or the plugin UI.
 
 | Version | Security support | Notes |
 |---|---|---|
-| Latest 0.1.x | Best effort | Definition-only preview; upgrade to the newest patch release before reporting |
+| Latest 0.2.x | Best effort | Read-only discovery preview; upgrade to the newest patch release before reporting |
 | Older versions | No | Preview data formats and API contracts may change |
 
 ## Reporting a vulnerability
@@ -37,7 +38,7 @@ Include, when available:
 
 ## Current security boundaries
 
-Version 0.1.1 is designed around the following constraints:
+Version 0.2.0 is designed around the following constraints:
 
 - `execution_enabled` is hard-coded to `false`;
 - `config.json` accepts only language and theme preferences;
@@ -46,11 +47,37 @@ Version 0.1.1 is designed around the following constraints:
 - PVE content types are limited to `iso`, `vztmpl`, `snippets` and `import`;
 - resource creation and updates require manager-level authorization;
 - definition changes are submitted to the PegaProx audit log;
+- discovery start, completion and cancellation requests are audited;
+- PVE access is checked before `get_connected_manager` resolves a manager;
+- PBS access is checked before the plugin resolves `pbs_managers[pbs_id]`;
+- API-token effective roles are honored through `build_authz_user`;
+- PVE discovery requires `storage.view`;
+- PBS discovery requires `pbs.view`, `pbs.disks.view` and
+  `pbs.datastore.view`; `pbs.disks.smart` is not requested;
+- discovery task results are owner-scoped and object access is rechecked when
+  polling or cancelling a task;
+- tasks run on a fixed-size pool of named daemon threads, expire from memory and
+  support cooperative cancellation;
+- PVE progress uses PegaProx SSE scoped to the already-authorized cluster and
+  carries no infrastructure details;
+- PBS progress is never emitted as a global SSE event; PegaProx 1.0.2 has no
+  PBS/user SSE scope, so the owner-scoped REST task endpoint remains the fallback;
 - registry updates use cross-process locking and atomic replacement;
 - duplicate NFS destinations, PBS datastores, target/LUN ownership and WWIDs are
   rejected;
 - a LUN definition has exactly one PBS owner;
 - NFS path traversal and ambiguous JSON types are rejected.
+
+The PegaProx 1.0.2 PVE API and PBS SSH helpers needed for some observations are
+private interfaces. All private access is isolated in `compat.py`, feature-detected
+and fails closed with controlled errors. No other plugin module may import manager
+dictionaries or call private PegaProx API/SSH helpers.
+
+PBS SSH inspection is limited to a fixed command allowlist: existing iSCSI session
+reporting, `lsblk` JSON output and existing multipath maps. No user-controlled value
+is interpolated into these commands. The plugin does not invoke SendTargets
+discovery, iSCSI login/logout, mount/umount, `wipefs`, `mkfs` or PBS datastore
+mutation commands.
 
 The registry is stored under `config/storage-assistant/resources.json`. It contains
 storage metadata and identifiers, not authentication secrets. Protect the PegaProx
@@ -73,6 +100,7 @@ the implementation must provide all of the following:
 - dry-run planning followed by explicit apply, verify and rollback phases;
 - typed confirmation for formatting or signature removal;
 - background-task progress, cancellation and complete audit records;
+- the core-owned `pbs.disks.manage` permission proposed by the PegaProx maintainer;
 - post-operation verification on the selected PVE cluster or PBS instance;
 - multipath verification before registering a multipath-backed datastore.
 
